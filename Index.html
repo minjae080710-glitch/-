@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Self-Audit: 개인 지식 검증 및 비판적 점검 플랫폼</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .prose table { width: 100%; border-collapse: collapse; margin-top: 1rem; margin-bottom: 1rem; }
+    .prose th, .prose td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; font-size: 0.875rem; text-align: left; }
+    .prose th { background-color: #f8fafc; font-weight: 600; }
+    .prose ul { list-style-type: disc; padding-left: 1.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+    .prose h1, .prose h2, .prose h3 { font-weight: 700; color: #0f172a; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    .prose h2 { font-size: 1.15rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+    .prose h3 { font-size: 1rem; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <!-- 상단 네비게이션 바 -->
+  <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-sm">✓</div>
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 leading-none">Self-Audit</h1>
+        <p class="text-xs text-slate-500 mt-0.5">사실·출처 신뢰도 & 비판적 사고 점검 플랫폼</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-3">
+      <input type="password" id="apiKeyInput" placeholder="Gemini API Key 입력" 
+             class="text-xs px-3 py-2 border border-slate-300 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white bg-slate-50" />
+      <button onclick="saveApiKey()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg transition">
+        키 저장
+      </button>
+      <button onclick="loadSampleDoc()" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-3 py-2 rounded-lg transition">
+        샘플 문서 불러오기
+      </button>
+    </div>
+  </header>
+
+  <!-- 메인 워크스페이스 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+    
+    <!-- 좌측: 입력 에디터 -->
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-[calc(100vh-140px)] min-h-[580px]">
+      <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-xl">
+        <span class="text-sm font-semibold text-slate-700">검증할 글 / 메모 입력</span>
+        <div class="flex items-center space-x-2">
+          <button onclick="clearText()" class="text-xs text-slate-500 hover:text-slate-800 transition">지우기</button>
+        </div>
+      </div>
+      <div class="p-4 flex-1 flex flex-col gap-3">
+        <!-- 드래그 앤 드롭 영역 -->
+        <div id="dropZone" onclick="document.getElementById('fileInput').click()"
+             class="border-2 border-dashed border-slate-300 rounded-lg p-3 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition">
+          <p class="text-xs text-slate-500">📄 텍스트 파일(.txt, .md) 클릭 또는 드래그 앤 드롭</p>
+          <input type="file" id="fileInput" accept=".txt,.md,.csv" class="hidden" onchange="handleFileSelect(event)" />
+        </div>
+        
+        <textarea id="inputText" placeholder="점검하고 싶은 주장, 통계 해석, 학술 인용문 또는 메모를 여기에 입력하세요..."
+                  class="flex-1 w-full p-4 text-sm leading-relaxed border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"></textarea>
+        
+        <button id="runBtn" onclick="runSelfAudit()" 
+                class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition flex items-center justify-center space-x-2 shadow-sm">
+          <span>다차원 정밀 검증 시작</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 우측: 자가 검증 리포트 대시보드 -->
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-[calc(100vh-140px)] min-h-[580px]">
+      <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-xl">
+        <span class="text-sm font-semibold text-slate-700">검증 및 비판점 분석 리포트</span>
+        <button onclick="copyReport()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded transition">
+          결과 복사
+        </button>
+      </div>
+      <div class="p-6 flex-1 overflow-y-auto">
+        
+        <!-- 대기 화면 -->
+        <div id="emptyView" class="h-full flex flex-col items-center justify-center text-slate-400 text-center gap-3">
+          <div class="text-4xl">🔍</div>
+          <p class="text-sm font-medium">문서를 입력하고 검증을 시작하면<br><span class="text-blue-600">사실성, 출처 위계, 논리적 비약, 사각지대</span>를 분석한 결과가 도출됩니다.</p>
+        </div>
+
+        <!-- 로딩 화면 -->
+        <div id="loadingView" class="hidden h-full flex flex-col items-center justify-center gap-3">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p class="text-sm text-slate-500 font-medium">주장 분리, 통계 산출식 및 논리적 타당성 교차 검증 중...</p>
+        </div>
+
+        <!-- 결과 출력 영역 -->
+        <div id="reportContent" class="hidden prose prose-slate max-w-none text-sm leading-relaxed"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // 로컬 스토리지에 API 키 보관
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedKey = localStorage.getItem('self_audit_gemini_key');
+      if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
+    });
+
+    function saveApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (!key) { alert('API 키를 입력하세요.'); return; }
+      localStorage.setItem('self_audit_gemini_key', key);
+      alert('API 키가 브라우저에 안전하게 저장되었습니다.');
+    }
+
+    function clearText() {
+      document.getElementById('inputText').value = '';
+    }
+
+    // 파일 업로드 및 드래그 앤 드롭
+    const dropZone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach(name => {
+      dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500', 'bg-blue-50'); });
+    });
+    ['dragleave', 'drop'].forEach(name => {
+      dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.remove('border-blue-500', 'bg-blue-50'); });
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) readTextFile(files[0]);
+    });
+
+    function handleFileSelect(e) {
+      if (e.target.files.length > 0) readTextFile(e.target.files[0]);
+    }
+
+    function readTextFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => { document.getElementById('inputText').value = e.target.result; };
+      reader.readAsText(file);
+    }
+
+    // 샘플 문서
+    function loadSampleDoc() {
+      document.getElementById('inputText').value = `[분석 메모] 재난 지원의 공간적 편중 분석
+- 의문: 양 끝단만 비교하면 꼬리가 지워지므로 분포 전체를 반영하는 지니계수(G = ΣΣ|xi - xj| / 2n²μ)를 택했다.
+- 가상 배분 계산: 배분 A(60, 10, 10, 10, 10)와 배분 B(36, 33, 26, 5, 0)는 모두 지니계수가 0.400으로 같다. 그러나 B는 특정 지역이 완전히 배제된 상황이다. 지니계수는 어느 쪽 꼬리에서 불평등이 벌어졌는지 구별하지 못한다.
+- 공간 집계 문제: 타일 지수를 이용해 집단 간/집단 내로 분해했을 때, 집단을 묶는 기준에 따라 집단 간 비중이 45.6%에서 26.1%로 달라진다. 이는 오픈쇼의 MAUP(수정가능단위지역문제)와 같다.
+- 한계: 공식적인 필요액 추계(Appeal)가 없는 위기는 목록 자체에 오르지 못한다. 즉, 지표 계산 이전 단계에서 구조적 배제가 일어난다.`;
+    }
+
+    // 분석 실행 파이프라인
+    async function runSelfAudit() {
+      const text = document.getElementById('inputText').value.trim();
+      const apiKey = document.getElementById('apiKeyInput').value.trim();
+
+      if (!text) { alert('검증할 글을 입력하세요.'); return; }
+      if (!apiKey) { alert('상단에 Gemini API Key를 입력하세요. (Google AI Studio에서 무료 발급 가능)'); return; }
+
+      const emptyView = document.getElementById('emptyView');
+      const loadingView = document.getElementById('loadingView');
+      const reportContent = document.getElementById('reportContent');
+      const runBtn = document.getElementById('runBtn');
+
+      emptyView.classList.add('hidden');
+      reportContent.classList.add('hidden');
+      loadingView.classList.remove('hidden');
+      runBtn.disabled = true;
+
+      const systemPrompt = `당신은 사용자의 글과 주장을 검증하는 '개인 지식 자가 검증(Self-Audit) 전문가'입니다.
+제공된 글을 엄밀하고 비판적으로 분석하여 반드시 아래 4대 영역 구조에 맞춰 완벽한 Markdown 보고서를 작성하세요.
+
+# 📋 지식 자가 점검(Self-Audit) 결과 보고서
+
+## 1. 사실성 및 수치 검산 (Fact & Calculation Check)
+- 본문에 등장하는 수식, 수치 계산, 통계 공식, 역사/이론적 사실을 대조하고 검산 결과를 표(Table)로 제시하세요.
+| 항목 | 본문 주장/계산 | 검증 결과 | 판정 (사실 / 오류 / 확인불가) |
+
+## 2. 출처 및 학술 인용의 신뢰도 위계 (Source Credibility)
+- 인용된 연구자, 학술 이론, 개념(예: 지리학, 경제학 이론 등)이 원래 맥락에 맞게 사용되었는지 검토하세요.
+- 주장 근거의 출처 수준(공식 통계, 동료평가 논문, 단순 추정 등)을 평가하세요.
+
+## 3. 논리 구조 및 추론 타당성 점검 (Logical Validity & Fallacy)
+- **상관관계와 인과관계의 혼동**: 단순 병행 현상을 인과로 단정하지 않았는가?
+- **표본의 대표성 및 일반화**: 소표본이나 가상 사례의 결론을 무리하게 확장하지 않았는가?
+- **암묵적 전제의 타당성**: 주장의 바탕에 깔린 전제가 무너질 가능성은 없는가?
+
+## 4. 구조적 사각지대 및 선택 편향 (Blind Spot & Selection Bias)
+- **진입 전 탈락 표본**: 데이터나 통계 목록에 오르지 못하고 원천 배제된 대상은 무엇인가?
+- **지표 선택에 따른 은폐**: 특정 지표나 방식을 택함으로써 지워지는 대안적 해석은 무엇인가?
+- **보완 제언**: 주장의 객관성과 설득력을 높이기 위한 구체적인 후속 검증 방안.`;
+
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { parts: [{ text: systemPrompt }, { text: `[검증 대상 본문]:\n${text}` }] }
+            ]
+          })
+        });
+
+        const data = await res.json();
+        if (data.candidates && data.candidates[0].content) {
+          const mdText = data.candidates[0].content.parts[0].text;
+          reportContent.innerHTML = marked.parse(mdText);
+          loadingView.classList.add('hidden');
+          reportContent.classList.remove('hidden');
+        } else {
+          throw new Error(data.error?.message || '분석 결과를 도출하지 못했습니다.');
+        }
+      } catch (err) {
+        loadingView.classList.add('hidden');
+        reportContent.classList.remove('hidden');
+        reportContent.innerHTML = `<div class="p-4 bg-red-50 text-red-700 rounded-lg"><strong>오류 발생:</strong> ${err.message}</div>`;
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    function copyReport() {
+      const content = document.getElementById('reportContent');
+      if (!content.innerText) { alert('복사할 결과가 없습니다.'); return; }
+      navigator.clipboard.writeText(content.innerText).then(() => {
+        alert('보고서가 클립보드에 복사되었습니다.');
+      });
+    }
+  </script>
+</body>
+</html>
